@@ -9,6 +9,7 @@ struct PromptHistoryView: View {
     @AppStorage("addedLocales")    private var addedLocalesRaw: String = "en-US"
     @State private var showingLanguagePicker = false
     @State private var showingHowTo = false
+    @State private var isAccessibilityGranted = AXIsProcessTrusted()
 
     // Comma-separated storage → array
     private var addedLocales: [String] {
@@ -22,6 +23,10 @@ struct PromptHistoryView: View {
         VStack(spacing: 0) {
             header
             Divider()
+            if !isAccessibilityGranted {
+                accessibilityBanner
+                Divider()
+            }
             if history.entries.isEmpty {
                 emptyState
             } else {
@@ -234,10 +239,45 @@ struct PromptHistoryView: View {
         return identifier.components(separatedBy: "-").first?.uppercased() ?? identifier
     }
 
+    // MARK: - Accessibility Banner
+
+    private var accessibilityBanner: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                    .font(.system(size: 12))
+                Text("Accessibility permission needed")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.primary)
+            }
+            Text("The ⌃⌥ hotkey won't work until you allow PromptShelf in System Settings → Privacy & Security → Accessibility.")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Open Privacy Settings →") {
+                NSWorkspace.shared.open(
+                    URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!
+                )
+            }
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(Color.accentColor)
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.orange.opacity(0.08))
+        // Poll every 2s — auto-dismisses when user grants permission
+        .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
+            isAccessibilityGranted = AXIsProcessTrusted()
+        }
+    }
+
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 20) {
+        VStack(spacing: 18) {
             VStack(spacing: 6) {
                 Image(systemName: "square.stack.3d.up")
                     .font(.system(size: 28, weight: .light))
@@ -247,15 +287,39 @@ struct PromptHistoryView: View {
                     .foregroundStyle(.secondary)
             }
 
+            // Prominent trigger shortcut card
+            VStack(spacing: 8) {
+                Text("Press to start a session")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.secondary)
+                HStack(spacing: 8) {
+                    keyBadge("⌃", label: "Control")
+                    Text("+")
+                        .font(.system(size: 16, weight: .light))
+                        .foregroundStyle(.secondary)
+                    keyBadge("⌥", label: "Option")
+                }
+                Text("Press again to cancel")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary.opacity(0.7))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(Color.accentColor.opacity(0.07))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.accentColor.opacity(0.18), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .padding(.horizontal, 14)
+
             // Quick shortcut reference
             VStack(spacing: 0) {
-                shortcutRow(keys: "⌃ + ⌥", label: "Start / cancel session")
+                shortcutRow(keys: "⌘ C", label: "Capture text or image")
                 Divider().padding(.leading, 14)
-                shortcutRow(keys: "⌘ + C", label: "Capture text or image")
+                shortcutRow(keys: "⌘ ⇧ 4", label: "Screenshot to shelf")
                 Divider().padding(.leading, 14)
-                shortcutRow(keys: "⌘ + ⇧ + 4", label: "Screenshot to shelf")
-                Divider().padding(.leading, 14)
-                shortcutRow(keys: "⌘ + V", label: "Paste everything in order")
+                shortcutRow(keys: "⌘ V", label: "Paste everything in order")
             }
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
             .overlay(
@@ -265,7 +329,24 @@ struct PromptHistoryView: View {
             .padding(.horizontal, 14)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 28)
+        .padding(.vertical, 24)
+    }
+
+    private func keyBadge(_ key: String, label: String) -> some View {
+        VStack(spacing: 4) {
+            Text(key)
+                .font(.system(size: 22, weight: .semibold))
+                .frame(width: 48, height: 44)
+                .background(Color.primary.opacity(0.08))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .strokeBorder(Color.primary.opacity(0.14), lineWidth: 1)
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 8))
+            Text(label)
+                .font(.system(size: 9, weight: .regular))
+                .foregroundStyle(.secondary.opacity(0.7))
+        }
     }
 
     private func shortcutRow(keys: String, label: String) -> some View {
@@ -273,7 +354,7 @@ struct PromptHistoryView: View {
             Text(keys)
                 .font(.system(size: 11, weight: .semibold, design: .monospaced))
                 .foregroundStyle(Color.accentColor)
-                .frame(width: 88, alignment: .leading)
+                .frame(width: 72, alignment: .leading)
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)

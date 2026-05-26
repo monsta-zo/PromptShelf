@@ -186,12 +186,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // MARK: - First Launch
 
     /// Opens the popover automatically the very first time the app is launched.
+    /// Uses a version-scoped key so users who previously ran a dev build still get the guide.
     private func openPopoverOnFirstLaunch() {
-        let key = "hasLaunchedBefore"
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1"
+        let key = "hasLaunchedBefore_v\(version)"
         guard !UserDefaults.standard.bool(forKey: key) else { return }
         UserDefaults.standard.set(true, forKey: key)
 
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+        // Slightly longer delay so the status bar item is fully ready
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self, let button = self.statusItem.button else { return }
             self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
             NSApp.activate(ignoringOtherApps: true)
