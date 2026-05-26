@@ -9,7 +9,8 @@ struct PromptHistoryView: View {
     @AppStorage("addedLocales")    private var addedLocalesRaw: String = "en-US"
     @State private var showingLanguagePicker = false
     @State private var showingHowTo = false
-    @State private var isAccessibilityGranted = AXIsProcessTrusted()
+    @State private var isAccessibilityGranted   = AXIsProcessTrusted()
+    @State private var isInputMonitoringGranted = CGPreflightListenEventAccess()
 
     // Comma-separated storage → array
     private var addedLocales: [String] {
@@ -23,7 +24,7 @@ struct PromptHistoryView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            if !isAccessibilityGranted {
+            if !isAccessibilityGranted || !isInputMonitoringGranted {
                 permissionBanner
                 Divider()
             }
@@ -247,31 +248,47 @@ struct PromptHistoryView: View {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
                     .font(.system(size: 12))
-                Text("Accessibility permission required")
+                Text("Permissions required")
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.primary)
             }
-            permissionRow(
-                detail: "Required for the ⌃⌥ hotkey and ⌘V detection",
-                url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
-            )
+
+            if !isInputMonitoringGranted {
+                permissionRow(
+                    label: "Input Monitoring",
+                    detail: "Required for the ⌃⌥ hotkey",
+                    url: "x-apple.systempreferences:com.apple.preference.security?Privacy_ListenEvent"
+                )
+            }
+            if !isAccessibilityGranted {
+                permissionRow(
+                    label: "Accessibility",
+                    detail: "Required for ⌘V paste detection",
+                    url: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+                )
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color.orange.opacity(0.08))
-        // Poll every 2s — auto-dismisses once permission is granted
+        // Poll every 2s — auto-dismisses once all permissions are granted
         .onReceive(Timer.publish(every: 2, on: .main, in: .common).autoconnect()) { _ in
-            isAccessibilityGranted = AXIsProcessTrusted()
+            isAccessibilityGranted   = AXIsProcessTrusted()
+            isInputMonitoringGranted = CGPreflightListenEventAccess()
         }
     }
 
-    private func permissionRow(detail: String, url: String) -> some View {
-        HStack(spacing: 0) {
-            Text(detail)
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+    private func permissionRow(label: String, detail: String, url: String) -> some View {
+        HStack(alignment: .center, spacing: 0) {
+            VStack(alignment: .leading, spacing: 1) {
+                Text(label)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(.primary)
+                Text(detail)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
             Spacer(minLength: 8)
             Button("Enable →") {
                 NSWorkspace.shared.open(URL(string: url)!)

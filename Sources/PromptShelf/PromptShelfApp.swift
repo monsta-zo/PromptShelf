@@ -38,9 +38,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover: NSPopover!
     private var cancellables = Set<AnyCancellable>()
 
-    // CGEventTap for ⌃⌥ hotkey — requires only Accessibility (same as PasteQueueService)
-    nonisolated(unsafe) private var hotkeyTap: CFMachPort?
-    nonisolated(unsafe) private var hotkeyRunLoopSource: CFRunLoopSource?
+    // Global monitor for ⌃⌥ hotkey.
+    // NSEvent.addGlobalMonitorForEvents is used intentionally: unlike CGEvent.tapCreate,
+    // it registers successfully before permissions are granted and begins delivering events
+    // as soon as the user allows Input Monitoring — no app restart required.
+    private var hotkeyMonitor: Any?
+
+    // Global monitor used to close the popover when the user clicks outside it.
+    private var popoverDismissMonitor: Any?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
@@ -48,7 +53,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupPopover()
         setupLaunchAtLogin()
         requestAccessibilityPermission()
-        setupIconObservation()
         setupGlobalHotkeys()
         openPopoverOnFirstLaunch()
     }
@@ -89,8 +93,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - Launch at Login
 
-    /// Registers the app as a login item on first launch.
-    /// The user can disable it anytime via System Settings → General → Login Items.
     private func setupLaunchAtLogin() {
         let service = SMAppService.mainApp
         guard service.status != .enabled else { return }
@@ -112,10 +114,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func togglePopover(_ sender: NSStatusBarButton) {
         if popover.isShown {
-            popover.performClose(nil)
+            closePopover()
         } else {
-            popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
-            NSApp.activate(ignoringOtherApps: true)
+            openPopover(relativeTo: sender)
+        }
+    }
+
+    private func openPopover(relativeTo button: NSStatusBarButton) {
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        NSApp.activate(ignoringOtherApps: true)
+
+        // Dismiss when the user clicks anywhere outside the popover.
+        // Uses a global monitor so it works even when clicking into another app.
+        // Falls back to .transient behavior if Input Monitoring is not granted.
+        popoverDismissMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown, .otherMouseDown]
+        ) { [weak self] _ in
+            self?.closePopover()
+        }
+    }
+
+    private func closePopover() {
+        popover.performClose(nil)
+        if let m = popoverDismissMonitor {
+            NSEvent.removeMonitor(m)
+            popoverDismissMonitor = nil
         }
     }
 
@@ -142,18 +165,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     @MainActor
     func refreshIcon() {
         guard let button = statusItem?.button else { return }
-        let isRecording = AppCore.shared.speech.isListening
-
-        if isRecording {
-            button.image = Self.recordingImage()
-        } else {
-            button.image = Self.booksImage()
-        }
+        button.image = AppCore.shared.speech.isListening ? Self.recordingImage() : Self.booksImage()
     }
 
     // MARK: - Icon Helpers
 
-    /// Standard books icon (template — adapts to dark/light menu bar)
     static func booksImage() -> NSImage? {
         let cfg = NSImage.SymbolConfiguration(pointSize: 13, weight: .medium)
         let img = NSImage(systemSymbolName: "books.vertical.fill", accessibilityDescription: "PromptShelf")?
@@ -162,7 +178,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return img
     }
 
-    /// Waveform + red dot composite for recording state
     static func recordingImage() -> NSImage {
         let size = NSSize(width: 28, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
@@ -182,21 +197,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - First Launch
 
-    /// Opens the popover on first launch of this version, or whenever Accessibility
-    /// is not yet granted — so new users always land on the permission guide.
+    /// Opens the popover on first launch of this version, or whenever a required
+    /// permission is not yet granted — so new users always land on the guide.
     private func openPopoverOnFirstLaunch() {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1"
         let key = "hasLaunchedBefore_v\(version)"
         let isFirstLaunch = !UserDefaults.standard.bool(forKey: key)
-        let needsPermission = !AXIsProcessTrusted()
+        let needsPermission = !AXIsProcessTrusted() || !CGPreflightListenEventAccess()
 
         guard isFirstLaunch || needsPermission else { return }
         if isFirstLaunch { UserDefaults.standard.set(true, forKey: key) }
 
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self, let button = self.statusItem.button else { return }
-            self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            NSApp.activate(ignoringOtherApps: true)
+            self.openPopover(relativeTo: button)
         }
     }
 
@@ -208,64 +222,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // MARK: - Global Hotkey (⌃⌥)
-    // Uses CGEventTap so only Accessibility is required — same permission as PasteQueueService.
     // ⌃⌥ first press  → open side panel + start recording
     // ⌃⌥ second press → cancel session without pasting
+    //
+    // Uses NSEvent.addGlobalMonitorForEvents so the monitor is registered immediately
+    // at launch and activates as soon as the user grants Input Monitoring — no restart needed.
 
     private func setupGlobalHotkeys() {
-        let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
+        hotkeyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { event in
+            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+            guard flags == [.control, .option] else { return }
 
-        let tap = CGEvent.tapCreate(
-            tap: .cgSessionEventTap,
-            place: .headInsertEventTap,
-            options: .defaultTap,
-            eventsOfInterest: mask,
-            callback: { _, type, event, _ -> Unmanaged<CGEvent>? in
-                guard type == .flagsChanged else { return Unmanaged.passRetained(event) }
+            Task { @MainActor in
+                let core = AppCore.shared
 
-                let f = event.flags
-                let onlyControlOption = f.contains(.maskControl) && f.contains(.maskAlternate)
-                    && !f.contains(.maskCommand) && !f.contains(.maskShift)
-                    && !f.contains(.maskAlphaShift)
-                guard onlyControlOption else { return Unmanaged.passRetained(event) }
-
-                Task { @MainActor in AppDelegate.handleHotkey() }
-
-                return Unmanaged.passRetained(event)
-            },
-            userInfo: nil
-        )
-
-        guard let tap else { return }
-        CGEvent.tapEnable(tap: tap, enable: true)
-        let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
-        CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
-
-        hotkeyTap = tap
-        hotkeyRunLoopSource = src
-    }
-
-    @MainActor
-    static func handleHotkey() {
-        let core = AppCore.shared
-
-        if core.speech.isListening {
-            // CANCEL — end session without pasting
-            PasteQueueService.shared.stopWatching()
-            TextSelectionService.shared.stopSession()
-            ScreenshotWatcher.shared.stopSession()
-            core.speech.stop { _ in }
-            core.session.clear()
-            SidePanelController.shared.hide()
-            NSSound(named: "Pop")?.play()
-        } else {
-            // START
-            PasteQueueService.shared.stopWatching()
-            SidePanelController.shared.show()
-            TextSelectionService.shared.startSession()
-            ScreenshotWatcher.shared.startSession()
-            PasteQueueService.shared.startWatching()
-            core.speech.start { _ in }
+                if core.speech.isListening {
+                    // CANCEL — end session without pasting
+                    PasteQueueService.shared.stopWatching()
+                    TextSelectionService.shared.stopSession()
+                    ScreenshotWatcher.shared.stopSession()
+                    core.speech.stop { _ in }
+                    core.session.clear()
+                    SidePanelController.shared.hide()
+                    NSSound(named: "Pop")?.play()
+                } else {
+                    // START
+                    PasteQueueService.shared.stopWatching()
+                    SidePanelController.shared.show()
+                    TextSelectionService.shared.startSession()
+                    ScreenshotWatcher.shared.startSession()
+                    PasteQueueService.shared.startWatching()
+                    core.speech.start { _ in }
+                }
+            }
         }
     }
 }
