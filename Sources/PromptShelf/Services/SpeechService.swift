@@ -18,7 +18,11 @@ final class SpeechService: ObservableObject {
 
     // Recreated each session using the currently selected locale
     private var recognizer: SFSpeechRecognizer?
-    private var audioEngine = AVAudioEngine()
+    // Intentionally optional: AVAudioEngine must not exist outside of an active session.
+    // On macOS, merely holding an AVAudioEngine instance causes Bluetooth headphones
+    // (e.g. AirPods) to switch from A2DP (high-quality) to HFP/SCO (low-quality mic mode),
+    // muffling all audio even when not recording.
+    private var audioEngine: AVAudioEngine?
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     private var recognitionTask: SFSpeechRecognitionTask?
     private var onFinishedCallback: ((String) -> Void)?
@@ -57,8 +61,10 @@ final class SpeechService: ObservableObject {
         recognitionRequest = nil
         recognitionTask = nil
 
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        audioEngine?.stop()
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        // Nil out the engine so Bluetooth headphones revert to high-quality A2DP mode
+        audioEngine = nil
 
         liveTranscript = ""
         state = .idle
@@ -84,19 +90,22 @@ final class SpeechService: ObservableObject {
     // MARK: - Audio Engine (lives for the whole session)
 
     private func startAudioEngine() {
-        audioEngine = AVAudioEngine()
-        let inputNode = audioEngine.inputNode
+        let engine = AVAudioEngine()
+        audioEngine = engine
+
+        let inputNode = engine.inputNode
         let format = inputNode.outputFormat(forBus: 0)
 
         inputNode.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             self?.recognitionRequest?.append(buffer)
         }
 
-        audioEngine.prepare()
+        engine.prepare()
         do {
-            try audioEngine.start()
+            try engine.start()
             state = .listening
         } catch {
+            audioEngine = nil
             state = .unavailable("Audio engine failed: \(error.localizedDescription)")
         }
     }
