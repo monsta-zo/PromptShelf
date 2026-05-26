@@ -43,6 +43,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         setupPopover()
         setupLaunchAtLogin()
         requestAccessibilityPermission()
+        requestInputMonitoringPermission()
         setupIconObservation()
         setupGlobalHotkeys()
         openPopoverOnFirstLaunch()
@@ -201,11 +202,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // MARK: - Accessibility
+    // MARK: - Permissions
 
     private func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         AXIsProcessTrustedWithOptions(options)
+    }
+
+    private func requestInputMonitoringPermission() {
+        // CGEventTap (used for ⌘V detection) requires Input Monitoring permission.
+        // Calling this at launch shows the system dialog proactively.
+        CGRequestListenEventAccess()
     }
 
     // MARK: - Global Hotkeys

@@ -29,7 +29,6 @@ final class SoundService: NSObject {
 
     private func makePlayer(resource: String, ext: String) -> AVAudioPlayer? {
         guard let url = Bundle.module.url(forResource: resource, withExtension: ext) else {
-            print("⚠️ SoundService: \(resource).\(ext) not found in bundle")
             return nil
         }
         let player = try? AVAudioPlayer(contentsOf: url)

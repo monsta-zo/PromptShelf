@@ -6,9 +6,9 @@ import Foundation
 enum PromptChunk: Identifiable {
     case text(String)
     case image(NSImage)
-    case file(url: URL, name: String)   // 경로만 저장, 내용 읽지 않음
+    case file(url: URL, name: String)   // stores path only, does not read file contents
 
-    var id: UUID { UUID() }  // 뷰 렌더링용
+    var id: UUID { UUID() }  // for view rendering
 }
 
 // MARK: - Session
@@ -46,7 +46,7 @@ final class PromptSession: ObservableObject {
         chunks.append(.file(url: url, name: url.lastPathComponent))
     }
 
-    /// 텍스트/파일 청크를 이어붙인 전체 프롬프트 (히스토리 저장용)
+    /// Full prompt text formed by joining text and file chunks (used when saving to history)
     var fullPrompt: String {
         chunks.compactMap {
             switch $0 {
@@ -57,12 +57,12 @@ final class PromptSession: ObservableObject {
         }.joined(separator: "\n")
     }
 
-    /// 이미지 포함 여부
+    /// Returns true if the session contains at least one image chunk
     var hasImages: Bool {
         chunks.contains { if case .image = $0 { return true }; return false }
     }
 
-    /// 외부에서 캡처한 청크 배열을 직접 클립보드에 복사 (세션 clear 후에도 사용 가능)
+    /// Copies a given chunk array to the clipboard directly (safe to call after the session has been cleared)
     static func copyToClipboard(chunks: [PromptChunk]) {
         guard !chunks.isEmpty else { return }
 
@@ -77,20 +77,20 @@ final class PromptSession: ObservableObject {
         if !plain.isEmpty { pb.setString(plain, forType: .string) }
     }
 
-    /// 모든 청크를 순서대로 클립보드에 복사
-    /// - public.html : 텍스트 + 이미지 순서 유지 (Claude web, Cursor AI, Notes 등)
-    /// - .string     : 텍스트만 (터미널, 순수 텍스트 에디터 폴백)
+    /// Copies all chunks to the clipboard in order.
+    /// - public.html : preserves text + image order (Claude web, Cursor AI, Notes, etc.)
+    /// - .string     : plain text only, fallback for terminals and plain-text editors
     func copyAllToClipboard() {
         guard !chunks.isEmpty else { return }
 
         let pb = NSPasteboard.general
         pb.clearContents()
 
-        // 1) HTML — 텍스트와 이미지를 순서대로 포함
+        // 1) HTML — preserves text and images in order
         let html = buildHTML()
         pb.setString(html, forType: NSPasteboard.PasteboardType("public.html"))
 
-        // 2) Plain text 폴백 (HTML을 못 읽는 앱용)
+        // 2) Plain text fallback for apps that don't read HTML
         let plainText = chunks.compactMap { chunk -> String? in
             if case .text(let t) = chunk { return t }
             return nil
@@ -139,7 +139,7 @@ final class PromptSession: ObservableObject {
                 html += "<p>\(escaped)</p>"
 
             case .image(let img):
-                // 최대 1200px로 축소 후 JPEG 80% 압축 (용량 절감)
+                // Downscale to 1200 px max-width and compress as JPEG 80% to reduce size
                 if let b64 = jpegBase64(img, maxWidth: 1200, quality: 0.8) {
                     html += "<p><img src='data:image/jpeg;base64,\(b64)' style='max-width:100%;border-radius:6px;'></p>"
                 }
@@ -159,7 +159,7 @@ final class PromptSession: ObservableObject {
         let scale  = min(1.0, maxWidth / size.width)
         let newSize = NSSize(width: size.width * scale, height: size.height * scale)
 
-        // 리사이즈
+        // Resize
         let resized = NSImage(size: newSize)
         resized.lockFocus()
         image.draw(in: NSRect(origin: .zero, size: newSize),

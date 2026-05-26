@@ -1,26 +1,26 @@
 #!/bin/bash
-# 빌드 → 권한 초기화 → 설치 → 실행
-# 처음 한 번만 손쉬운 사용 허용하면 됨
+# Build → reset Accessibility permission → install → launch
+# Grant Accessibility access once when the system dialog appears
 
 set -e
 cd "$(dirname "$0")"
 
-echo "🔨 빌드 중..."
+echo "🔨 Building..."
 swift build 2>&1 | tail -3
 
-echo "📦 /Applications 업데이트..."
+echo "📦 Updating /Applications..."
 killall PromptShelf 2>/dev/null || true
 sleep 0.3
 
 sudo cp .build/debug/PromptShelf /Applications/PromptShelf.app/Contents/MacOS/
 codesign --force --sign - /Applications/PromptShelf.app
 
-echo "🔐 Accessibility 권한 초기화..."
+echo "🔐 Resetting Accessibility permission..."
 sudo tccutil reset Accessibility com.promptshelf.app 2>/dev/null || true
 
-echo "🚀 실행 중..."
+echo "🚀 Launching..."
 open /Applications/PromptShelf.app
 
 echo ""
-echo "⚠️  손쉬운 사용 권한 요청이 뜨면 허용 후, 앱을 한 번 재시작하세요:"
+echo "⚠️  If an Accessibility permission dialog appears, allow it then restart the app:"
 echo "   killall PromptShelf && open /Applications/PromptShelf.app"
