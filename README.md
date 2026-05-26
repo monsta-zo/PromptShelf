@@ -30,28 +30,31 @@
 
 ## Demo
 
-| Voice Input | Clipboard Capture |
-|:-----------:|:-----------------:|
+| 🎤 Voice Input | 📋 Clipboard Capture |
+|:--------------:|:--------------------:|
 | ![voice](assets/1.gif) | ![clipboard](assets/2.gif) |
+| `⌃⌥` to start speaking | `⌘C` anything during session |
 
-| Image Copy | Screenshot |
-|:----------:|:----------:|
+| 🖼️ Image Copy | 📸 Screenshot |
+|:-------------:|:-------------:|
 | ![image](assets/3.gif) | ![screenshot](assets/4.gif) |
+| `⌘C` on any image | `⌘⇧3` / `⌘⇧4` during session |
 
-| File Drop | Smart Paste |
-|:---------:|:-----------:|
+| 📁 File Drop | ⚡ Smart Paste |
+|:-----------:|:-------------:|
 | ![filedrop](assets/5.gif) | ![paste](assets/6.gif) |
+| Drag & drop onto panel | `⌘V` to send everything in order |
 
 ---
 
 ## Install
 
 ### Download (Recommended)
-Download the latest `.dmg` from [Releases](https://github.com/YOUR_USERNAME/PromptShelf/releases).
+Download the latest `.dmg` from [Releases](https://github.com/monsta-zo/PromptShelf/releases).
 
 ### Build from Source
 ```bash
-git clone https://github.com/YOUR_USERNAME/PromptShelf.git
+git clone https://github.com/monsta-zo/PromptShelf.git
 cd PromptShelf
 bash build-app.sh
 cp -r PromptShelf.app /Applications/
@@ -97,7 +100,7 @@ PromptShelf requires the following on first launch:
 PRs are welcome. For major changes, open an issue first.
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/PromptShelf.git
+git clone https://github.com/monsta-zo/PromptShelf.git
 cd PromptShelf
 swift build
 ```
