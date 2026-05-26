@@ -1,6 +1,7 @@
 import SwiftUI
 import AppKit
 import Combine
+import CoreGraphics
 import ServiceManagement
 
 // MARK: - App Core
@@ -37,13 +38,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var popover: NSPopover!
     private var cancellables = Set<AnyCancellable>()
 
+    // CGEventTap for ⌃⌥ hotkey — requires only Accessibility (same as PasteQueueService)
+    nonisolated(unsafe) private var hotkeyTap: CFMachPort?
+    nonisolated(unsafe) private var hotkeyRunLoopSource: CFRunLoopSource?
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         NSApp.setActivationPolicy(.accessory)
         setupStatusItem()
         setupPopover()
         setupLaunchAtLogin()
         requestAccessibilityPermission()
-        requestInputMonitoringPermission()
         setupIconObservation()
         setupGlobalHotkeys()
         openPopoverOnFirstLaunch()
@@ -120,7 +124,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupIconObservation() {
         let speech = AppCore.shared.speech
 
-        // Observe speech state changes (isListening is derived from state)
         speech.$state
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -128,7 +131,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
             .store(in: &cancellables)
 
-        // Update icon when side panel shows/hides
         NotificationCenter.default.publisher(for: .sidePanelVisibilityChanged)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
@@ -141,12 +143,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func refreshIcon() {
         guard let button = statusItem?.button else { return }
         let isRecording = AppCore.shared.speech.isListening
-        let isActive    = SidePanelController.shared.isVisible
 
         if isRecording {
             button.image = Self.recordingImage()
-        } else if isActive {
-            button.image = Self.booksImage()
         } else {
             button.image = Self.booksImage()
         }
@@ -167,34 +166,33 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     static func recordingImage() -> NSImage {
         let size = NSSize(width: 28, height: 18)
         let image = NSImage(size: size, flipped: false) { _ in
-            // Waveform (white — template-style, drawn explicitly)
             if let waveform = NSImage(systemSymbolName: "waveform", accessibilityDescription: nil) {
                 let cfg = NSImage.SymbolConfiguration(pointSize: 12, weight: .medium)
                 if let configured = waveform.withSymbolConfiguration(cfg) {
                     configured.draw(in: NSRect(x: 0, y: 2, width: 18, height: 14))
                 }
             }
-            // Red dot
             NSColor.systemRed.setFill()
             NSBezierPath(ovalIn: NSRect(x: 21, y: 6, width: 6, height: 6)).fill()
             return true
         }
-        // Not a template — keeps the red color
         image.isTemplate = false
         return image
     }
 
     // MARK: - First Launch
 
-    /// Opens the popover automatically the very first time the app is launched.
-    /// Uses a version-scoped key so users who previously ran a dev build still get the guide.
+    /// Opens the popover on first launch of this version, or whenever Accessibility
+    /// is not yet granted — so new users always land on the permission guide.
     private func openPopoverOnFirstLaunch() {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1"
         let key = "hasLaunchedBefore_v\(version)"
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
+        let isFirstLaunch = !UserDefaults.standard.bool(forKey: key)
+        let needsPermission = !AXIsProcessTrusted()
 
-        // Slightly longer delay so the status bar item is fully ready
+        guard isFirstLaunch || needsPermission else { return }
+        if isFirstLaunch { UserDefaults.standard.set(true, forKey: key) }
+
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
             guard let self, let button = self.statusItem.button else { return }
             self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
@@ -209,46 +207,65 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AXIsProcessTrustedWithOptions(options)
     }
 
-    private func requestInputMonitoringPermission() {
-        // CGEventTap (used for ⌘V detection) requires Input Monitoring permission.
-        // Calling this at launch shows the system dialog proactively.
-        CGRequestListenEventAccess()
-    }
-
-    // MARK: - Global Hotkeys
-    // ⌃+⌥ first press  → open side panel + start recording
-    // ⌃+⌥ second press → stop recording + save to history + hide panel
+    // MARK: - Global Hotkey (⌃⌥)
+    // Uses CGEventTap so only Accessibility is required — same permission as PasteQueueService.
+    // ⌃⌥ first press  → open side panel + start recording
+    // ⌃⌥ second press → cancel session without pasting
 
     private func setupGlobalHotkeys() {
-        NSEvent.addGlobalMonitorForEvents(matching: .flagsChanged) { event in
-            let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
-            guard flags == [.control, .option] else { return }
+        let mask = CGEventMask(1 << CGEventType.flagsChanged.rawValue)
 
-            Task { @MainActor in
-                let core = AppCore.shared
+        let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: { _, type, event, _ -> Unmanaged<CGEvent>? in
+                guard type == .flagsChanged else { return Unmanaged.passRetained(event) }
 
-                if core.speech.isListening {
-                    // CANCEL — end session without pasting
-                    PasteQueueService.shared.stopWatching()
-                    TextSelectionService.shared.stopSession()
-                    ScreenshotWatcher.shared.stopSession()
-                    core.speech.stop { _ in }
-                    core.session.clear()
-                    SidePanelController.shared.hide()
-                    NSSound(named: "Pop")?.play()
+                let f = event.flags
+                let onlyControlOption = f.contains(.maskControl) && f.contains(.maskAlternate)
+                    && !f.contains(.maskCommand) && !f.contains(.maskShift)
+                    && !f.contains(.maskAlphaShift)
+                guard onlyControlOption else { return Unmanaged.passRetained(event) }
 
-                } else {
-                    // START
-                    PasteQueueService.shared.stopWatching()
-                    SidePanelController.shared.show()
-                    TextSelectionService.shared.startSession()
-                    ScreenshotWatcher.shared.startSession()
+                Task { @MainActor in AppDelegate.handleHotkey() }
 
-                    PasteQueueService.shared.startWatching()
+                return Unmanaged.passRetained(event)
+            },
+            userInfo: nil
+        )
 
-                    core.speech.start { _ in }
-                }
-            }
+        guard let tap else { return }
+        CGEvent.tapEnable(tap: tap, enable: true)
+        let src = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        CFRunLoopAddSource(CFRunLoopGetMain(), src, .commonModes)
+
+        hotkeyTap = tap
+        hotkeyRunLoopSource = src
+    }
+
+    @MainActor
+    static func handleHotkey() {
+        let core = AppCore.shared
+
+        if core.speech.isListening {
+            // CANCEL — end session without pasting
+            PasteQueueService.shared.stopWatching()
+            TextSelectionService.shared.stopSession()
+            ScreenshotWatcher.shared.stopSession()
+            core.speech.stop { _ in }
+            core.session.clear()
+            SidePanelController.shared.hide()
+            NSSound(named: "Pop")?.play()
+        } else {
+            // START
+            PasteQueueService.shared.stopWatching()
+            SidePanelController.shared.show()
+            TextSelectionService.shared.startSession()
+            ScreenshotWatcher.shared.startSession()
+            PasteQueueService.shared.startWatching()
+            core.speech.start { _ in }
         }
     }
 }
