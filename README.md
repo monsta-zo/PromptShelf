@@ -1,0 +1,109 @@
+# PromptShelf
+
+**A macOS menu bar app that stacks voice, screenshots, copied text, and files into one seamless AI prompt — then pastes everything in order with a single ⌘V.**
+
+![macOS](https://img.shields.io/badge/macOS-15%2B-blue?style=flat-square)
+![Swift](https://img.shields.io/badge/Swift-5.9-orange?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
+
+---
+
+![PromptShelf Demo](assets/demo.gif)
+
+---
+
+## Features
+
+**🎤 Voice Input** — Speak naturally. Your words are transcribed in real-time and stacked as a prompt chunk.
+
+**📋 Clipboard Capture** — Any text or image you copy during a session is automatically added. No extra steps.
+
+**📸 Screenshot** — `⌘⇧3` / `⌘⇧4` during a session captures directly to your shelf — no file saved to desktop.
+
+**📁 File Drop** — Drag files onto the panel. Pasted as a file URL for web AI tools, or path text for terminals.
+
+**⚡ Smart Paste** — `⌘V` sends everything to your AI in order — voice, images, files, all at once.
+
+**🌍 Multi-language** — 63 speech recognition languages. Add the ones you need from the menu.
+
+---
+
+## Demo
+
+| Voice Input | Clipboard Capture |
+|:-----------:|:-----------------:|
+| ![voice](assets/1.gif) | ![clipboard](assets/2.gif) |
+
+| Image Copy | Screenshot |
+|:----------:|:----------:|
+| ![image](assets/3.gif) | ![screenshot](assets/4.gif) |
+
+| File Drop | Smart Paste |
+|:---------:|:-----------:|
+| ![filedrop](assets/5.gif) | ![paste](assets/6.gif) |
+
+---
+
+## Install
+
+### Download (Recommended)
+Download the latest `.dmg` from [Releases](https://github.com/YOUR_USERNAME/PromptShelf/releases).
+
+### Build from Source
+```bash
+git clone https://github.com/YOUR_USERNAME/PromptShelf.git
+cd PromptShelf
+bash build-app.sh
+cp -r PromptShelf.app /Applications/
+open /Applications/PromptShelf.app
+```
+
+> Requires Xcode Command Line Tools: `xcode-select --install`
+
+---
+
+## Permissions
+
+PromptShelf requires the following on first launch:
+
+| Permission | Why |
+|-----------|-----|
+| **Microphone** | Voice-to-text transcription |
+| **Speech Recognition** | Converting speech to prompt text |
+| **Accessibility** | Detecting ⌘V to trigger sequential paste |
+
+---
+
+## Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `⌃⌥` | Toggle session (start / cancel) |
+| `⌘C` | Auto-captured during session |
+| `⌘⇧3` / `⌘⇧4` | Screenshot directly to shelf |
+| `⌘V` | Paste all chunks in order |
+
+---
+
+## Requirements
+
+- macOS 15 or later
+- Apple Silicon or Intel Mac
+
+---
+
+## Contributing
+
+PRs are welcome. For major changes, open an issue first.
+
+```bash
+git clone https://github.com/YOUR_USERNAME/PromptShelf.git
+cd PromptShelf
+swift build
+```
+
+---
+
+## License
+
+[MIT](LICENSE)
