@@ -8,6 +8,22 @@
 
 ---
 
+### Works everywhere you use AI
+
+> No integrations. No plugins. No API keys. Just paste.
+
+| | Tool | How it works |
+|---|---|---|
+| 🖥️ | **Claude Code** | Press `⌘V` in the terminal — text, images, and files paste in sequence |
+| 🖱️ | **Claude.ai** | Click the chat input, hit `⌘V` — multimodal chunks land in order |
+| 🖱️ | **ChatGPT** | Same — voice + screenshots + text, all in one paste |
+| 🖱️ | **Gemini** | Works in the browser, no setup needed |
+| 🖥️ | **Cursor** | Paste directly into the AI chat or editor |
+| 🖥️ | **Windsurf / Zed** | Any editor with a chat input works out of the box |
+| 🖱️ | **Any AI tool** | If you can type in it, PromptShelf can paste into it |
+
+---
+
 ![PromptShelf Demo](assets/demo.gif)
 
 ---
