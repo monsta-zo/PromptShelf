@@ -33,17 +33,17 @@
 | 🎤 Voice Input | 📋 Clipboard Capture |
 |:--------------:|:--------------------:|
 | ![voice](assets/1.gif) | ![clipboard](assets/2.gif) |
-| `⌃⌥` to start speaking | `⌘C` anything during session |
+| `⌃` + `⌥` to start speaking | `⌘` + `C` anything during session |
 
 | 🖼️ Image Copy | 📸 Screenshot |
 |:-------------:|:-------------:|
 | ![image](assets/3.gif) | ![screenshot](assets/4.gif) |
-| `⌘C` on any image | `⌘⇧3` / `⌘⇧4` during session |
+| `⌘` + `C` on any image | `⌘` + `⇧` + `3` / `⌘` + `⇧` + `4` during session |
 
 | 📁 File Drop | ⚡ Smart Paste |
 |:-----------:|:-------------:|
 | ![filedrop](assets/5.gif) | ![paste](assets/6.gif) |
-| Drag & drop onto panel | `⌘V` to send everything in order |
+| Drag & drop onto panel | `⌘` + `V` to send everything in order |
 
 ---
 
