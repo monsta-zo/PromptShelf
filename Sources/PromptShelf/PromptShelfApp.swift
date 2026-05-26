@@ -203,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1"
         let key = "hasLaunchedBefore_v\(version)"
         let isFirstLaunch = !UserDefaults.standard.bool(forKey: key)
-        let needsPermission = !AXIsProcessTrusted() || !CGPreflightListenEventAccess()
+        let needsPermission = !AXIsProcessTrusted()
 
         guard isFirstLaunch || needsPermission else { return }
         if isFirstLaunch { UserDefaults.standard.set(true, forKey: key) }
