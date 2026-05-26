@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-// MARK: - 패널 상태 (hover opacity 공유)
+// MARK: - Panel State
 
 @MainActor
 final class PanelState: ObservableObject {
@@ -85,12 +85,12 @@ final class SidePanelController {
 
     func toggle() { isVisible ? hide() : show() }
 
-    // MARK: - 드래그 감지 + 호버 감지
+    // MARK: - Drag & Hover Monitoring
 
     private func startDragMonitoring() {
         guard dragMonitor == nil else { return }
 
-        // 마우스 위치 폴링 → SwiftUI opacity 조절
+        // Poll mouse position to fade the panel on hover (reduces visual obstruction)
         var lastOverPanel = false
         let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
             guard let self, let panel = self.panel else { return }
@@ -115,7 +115,7 @@ final class SidePanelController {
         RunLoop.main.add(timer, forMode: .common)
         hoverTimer = timer
 
-        // 파일 드래그 중일 때만 이벤트 허용
+        // Only accept mouse events while a file drag is over the panel
         dragMonitor = NSEvent.addGlobalMonitorForEvents(matching: .leftMouseDragged) { [weak self] _ in
             guard let self, let panel = self.panel else { return }
             let dragBoard = NSPasteboard(name: .drag)
@@ -146,6 +146,7 @@ final class SidePanelController {
 
     // MARK: - Panel Setup
 
+    // Stored outside the panel's view hierarchy so SwiftUI doesn't manage this layer
     nonisolated(unsafe) private var containerView: NSView?
 
     private func getOrCreatePanel() -> NSPanel {
@@ -159,11 +160,10 @@ final class SidePanelController {
 
         let hosting = NSHostingController(rootView: rootView)
 
-        // ── 컨테이너: SwiftUI 위에 씌우는 안정적인 레이어 ──────────
-        // NSHostingView 는 SwiftUI 가 내부 layer 를 관리 → 직접 건드리면 stale
-        // 컨테이너의 layer 만 opacity 제어 → 안정적
+        // Wrap the hosting view in a plain container whose layer we control for opacity.
+        // NSHostingView's internal layer is managed by SwiftUI — touching it directly causes stale state.
         let container = NSView()
-        container.wantsLayer = true          // 이 layer 는 SwiftUI 가 건드리지 않음
+        container.wantsLayer = true
         container.layer?.backgroundColor = .clear
 
         hosting.view.translatesAutoresizingMaskIntoConstraints = false
@@ -183,7 +183,7 @@ final class SidePanelController {
             defer: false
         )
 
-        p.contentView = container            // contentViewController 대신 직접 설정
+        p.contentView = container
         p.isFloatingPanel = true
         p.level = .floating
         p.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]

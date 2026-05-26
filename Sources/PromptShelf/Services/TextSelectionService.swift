@@ -42,14 +42,14 @@ final class TextSelectionService {
     private func captureCurrentClipboard() {
         let pb = NSPasteboard.general
 
-        // 1) 이미지 우선 체크 (TIFF → PNG 순)
+        // Check for image first (TIFF, then PNG)
         if let image = imageFromPasteboard(pb) {
             flushSpeechIfNeeded()
             PromptSession.shared.addImageChunk(image)
-                return
+            return
         }
 
-        // 2) 텍스트
+        // Fall back to plain text
         guard let text = pb.string(forType: .string) else { return }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.count > 1, trimmed != lastCapturedText else { return }
@@ -60,11 +60,11 @@ final class TextSelectionService {
     }
 
     private func imageFromPasteboard(_ pb: NSPasteboard) -> NSImage? {
-        // TIFF (대부분의 macOS 복사)
+        // TIFF — most macOS copy operations
         if let data = pb.data(forType: .tiff), let img = NSImage(data: data) {
             return img
         }
-        // PNG (웹 브라우저 등)
+        // PNG — web browsers and some apps
         if let data = pb.data(forType: .png), let img = NSImage(data: data) {
             return img
         }

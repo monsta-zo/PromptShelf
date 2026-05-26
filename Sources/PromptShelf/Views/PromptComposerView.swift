@@ -13,7 +13,7 @@ struct PromptComposerView: View {
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .trailing, spacing: 8) {
 
-                    // ── 확정된 청크들 ───────────────────────────────────
+                    // Finalized chunks
                     ForEach(Array(session.chunks.enumerated()), id: \.offset) { _, chunk in
                         switch chunk {
                         case .text(let text):
@@ -52,7 +52,7 @@ struct PromptComposerView: View {
                         }
                     }
 
-                    // ── 실시간 (녹음 중) ────────────────────────────────
+                    // Live transcription bubble
                     if !session.liveText.isEmpty {
                         glassBubble(style: .live) {
                             Text(session.liveText)
@@ -64,7 +64,7 @@ struct PromptComposerView: View {
                         .id("live")
                     }
 
-                    // 녹음 중이고 텍스트 아직 없을 때
+                    // Listening indicator (no text yet)
                     if speech.isListening && session.liveText.isEmpty && session.chunks.isEmpty {
                         glassBubble(style: .live) {
                             HStack(spacing: 6) {
@@ -127,16 +127,14 @@ struct PromptComposerView: View {
             }
     }
 
-    // MARK: - Drop Overlay (전체 패널)
+    // MARK: - Drop Overlay
 
     private var dropOverlay: some View {
         ZStack {
-            // 반투명 블러 배경
             Rectangle()
                 .fill(.ultraThinMaterial)
                 .opacity(0.85)
 
-            // 테두리
             Rectangle()
                 .strokeBorder(
                     Color.accentColor.opacity(0.5),
@@ -144,7 +142,6 @@ struct PromptComposerView: View {
                 )
                 .padding(12)
 
-            // 아이콘 + 텍스트
             VStack(spacing: 10) {
                 Image(systemName: "arrow.down.doc")
                     .font(.system(size: 32, weight: .light))

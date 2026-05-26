@@ -2,9 +2,6 @@ import SwiftUI
 import AppKit
 import Combine
 import ServiceManagement
-import os.log
-
-private let logger = Logger(subsystem: "com.promptshelf.app", category: "main")
 
 // MARK: - App Core
 
@@ -48,6 +45,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         requestAccessibilityPermission()
         setupIconObservation()
         setupGlobalHotkeys()
+        openPopoverOnFirstLaunch()
     }
 
     // MARK: - Status Item
@@ -91,12 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func setupLaunchAtLogin() {
         let service = SMAppService.mainApp
         guard service.status != .enabled else { return }
-        do {
-            try service.register()
-            logger.info("Registered as login item")
-        } catch {
-            logger.error("Failed to register login item: \(error.localizedDescription)")
-        }
+        try? service.register()
     }
 
     // MARK: - Popover
@@ -190,12 +183,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return image
     }
 
+    // MARK: - First Launch
+
+    /// Opens the popover automatically the very first time the app is launched.
+    private func openPopoverOnFirstLaunch() {
+        let key = "hasLaunchedBefore"
+        guard !UserDefaults.standard.bool(forKey: key) else { return }
+        UserDefaults.standard.set(true, forKey: key)
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
+            guard let self, let button = self.statusItem.button else { return }
+            self.popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
     // MARK: - Accessibility
 
     private func requestAccessibilityPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        let trusted = AXIsProcessTrustedWithOptions(options)
-        logger.info("Accessibility trusted: \(trusted)")
+        AXIsProcessTrustedWithOptions(options)
     }
 
     // MARK: - Global Hotkeys
@@ -227,7 +234,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     TextSelectionService.shared.startSession()
                     ScreenshotWatcher.shared.startSession()
 
-                    logger.info("Session start — AXIsProcessTrusted: \(AXIsProcessTrusted())")
                     PasteQueueService.shared.startWatching()
 
                     core.speech.start { _ in }

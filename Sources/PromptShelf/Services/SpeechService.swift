@@ -16,7 +16,7 @@ final class SpeechService: ObservableObject {
         return false
     }
 
-    // 현재 선택된 언어로 recognizer를 세션 시작 때마다 새로 생성
+    // Recreated each session using the currently selected locale
     private var recognizer: SFSpeechRecognizer?
     private var audioEngine = AVAudioEngine()
     private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
@@ -31,7 +31,6 @@ final class SpeechService: ObservableObject {
 
     func start(onFinished: @escaping (String) -> Void) {
         self.onFinishedCallback = onFinished
-        // 세션 시작 시 현재 선택된 언어로 recognizer 생성
         let localeID = UserDefaults.standard.string(forKey: "speechLocale") ?? "en-US"
         recognizer = SFSpeechRecognizer(locale: Locale(identifier: localeID))
         Task {

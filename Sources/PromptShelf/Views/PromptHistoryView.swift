@@ -237,19 +237,50 @@ struct PromptHistoryView: View {
     // MARK: - Empty State
 
     private var emptyState: some View {
-        VStack(spacing: 8) {
-            Image(systemName: "tray")
-                .font(.system(size: 28))
-                .foregroundColor(.secondary.opacity(0.4))
-            Text("No prompts yet")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-            Text("Use ⌃⌥ to record a prompt")
-                .font(.caption)
-                .foregroundColor(.secondary.opacity(0.7))
+        VStack(spacing: 20) {
+            VStack(spacing: 6) {
+                Image(systemName: "square.stack.3d.up")
+                    .font(.system(size: 28, weight: .light))
+                    .foregroundStyle(.secondary.opacity(0.5))
+                Text("No prompts yet")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            // Quick shortcut reference
+            VStack(spacing: 0) {
+                shortcutRow(keys: "⌃ + ⌥", label: "Start / cancel session")
+                Divider().padding(.leading, 14)
+                shortcutRow(keys: "⌘ + C", label: "Capture text or image")
+                Divider().padding(.leading, 14)
+                shortcutRow(keys: "⌘ + ⇧ + 4", label: "Screenshot to shelf")
+                Divider().padding(.leading, 14)
+                shortcutRow(keys: "⌘ + V", label: "Paste everything in order")
+            }
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+            .padding(.horizontal, 14)
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, 40)
+        .padding(.vertical, 28)
+    }
+
+    private func shortcutRow(keys: String, label: String) -> some View {
+        HStack(spacing: 10) {
+            Text(keys)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(Color.accentColor)
+                .frame(width: 88, alignment: .leading)
+            Text(label)
+                .font(.system(size: 12))
+                .foregroundStyle(.secondary)
+            Spacer()
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 9)
     }
 }
 
