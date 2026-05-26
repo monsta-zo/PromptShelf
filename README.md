@@ -2,25 +2,11 @@
 
 **A macOS menu bar app that stacks voice, screenshots, copied text, and files into one seamless AI prompt — then pastes everything in order with a single ⌘V.**
 
+Works with Claude Code, Claude.ai, ChatGPT, Gemini, Cursor, Windsurf, Zed — anywhere you can type. No integrations. No plugins. No API keys.
+
 ![macOS](https://img.shields.io/badge/macOS-15%2B-blue?style=flat-square)
 ![Swift](https://img.shields.io/badge/Swift-5.9-orange?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)
-
----
-
-### Works everywhere you use AI
-
-> No integrations. No plugins. No API keys. Just paste.
-
-| | Tool | How it works |
-|---|---|---|
-| 🖥️ | **Claude Code** | Press `⌘V` in the terminal — text, images, and files paste in sequence |
-| 🖱️ | **Claude.ai** | Click the chat input, hit `⌘V` — multimodal chunks land in order |
-| 🖱️ | **ChatGPT** | Same — voice + screenshots + text, all in one paste |
-| 🖱️ | **Gemini** | Works in the browser, no setup needed |
-| 🖥️ | **Cursor** | Paste directly into the AI chat or editor |
-| 🖥️ | **Windsurf / Zed** | Any editor with a chat input works out of the box |
-| 🖱️ | **Any AI tool** | If you can type in it, PromptShelf can paste into it |
 
 ---
 
